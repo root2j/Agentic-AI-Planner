@@ -58,31 +58,33 @@ async def test_get_plan_generate_new():
         nodes=[Node(id=idea_id, label=idea_text, type="idea")],
         edges=[]
     )
-    mock_llm_response = "# Newly Generated Plan\n\nThis plan was just created."
+    mock_plan_markdown = "# Newly Generated Plan\n\nThis plan was just created."
 
     with patch('app.services.plan_service.load_plan_markdown', return_value=None), \
-         patch('app.services.plan_service.build_graph', return_value=mock_graph) as mock_build_graph, \
-         patch('app.services.llm_client.LLMClient.send_prompt', return_value=mock_llm_response) as mock_send_prompt:
+         patch('app.services.graph_service.load_graph', return_value=None), \
+         patch('app.services.plan_service.build_graph_with_llm', return_value=mock_graph) as mock_build_graph_with_llm, \
+         patch('app.services.plan_service.generate_plan', return_value=mock_plan_markdown) as mock_generate_plan:
     
         plan = await get_plan(idea_id)
         assert isinstance(plan, Plan)
         assert plan.idea_id == idea_id
-        assert plan.markdown == mock_llm_response
+        assert plan.markdown == mock_plan_markdown
         
-        mock_build_graph.assert_called_once_with(idea_id)
-        mock_send_prompt.assert_called_once()
+        mock_build_graph_with_llm.assert_called_once_with(idea_id)
+        mock_generate_plan.assert_called_once_with(mock_graph)
 
         # Verify the new plan was saved
         loaded_markdown = load_plan_markdown(idea_id, PLANS_DIR)
-        assert loaded_markdown == mock_llm_response
+        assert loaded_markdown == mock_plan_markdown
 
 @pytest.mark.asyncio
 async def test_get_plan_idea_not_found_for_graph_build():
-    # If build_graph raises HTTPException (e.g., idea not found), get_plan should propagate it
+    # If build_graph_with_llm raises HTTPException (e.g., idea not found), get_plan should propagate it
     with patch('app.services.plan_service.load_plan_markdown', return_value=None), \
-         patch('app.services.plan_service.build_graph', side_effect=HTTPException(status_code=404, detail="Idea not found.")) as mock_build_graph:
+         patch('app.services.graph_service.load_graph', return_value=None), \
+         patch('app.services.plan_service.build_graph_with_llm', side_effect=HTTPException(status_code=404, detail="Idea not found.")) as mock_build_graph_with_llm:
         with pytest.raises(HTTPException) as exc_info:
             await get_plan("non_existent_idea_for_plan")
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Idea not found."
-        mock_build_graph.assert_called_once_with("non_existent_idea_for_plan")
+        mock_build_graph_with_llm.assert_called_once_with("non_existent_idea_for_plan")

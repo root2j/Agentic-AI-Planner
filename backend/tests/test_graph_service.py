@@ -49,7 +49,16 @@ async def test_build_graph():
 
         edge = next((e for e in graph.edges if e.from_node == idea_id and e.to_node == answer_node.id), None)
         assert edge is not None
-        assert edge.relation == "clarifies"
+        # The relation depends on the order of answers and the relation_types list in graph_service.py
+        # For the first answer (idx=0), it should be "is defined by"
+        # For the second answer (idx=1), it should be "depends on"
+        # For the third answer (idx=2), it should be "leads to"
+        expected_relations = {
+            "What is the target audience?": "is defined by",
+            "What are the core features?": "depends on",
+            "What is the monetization strategy?": "leads to"
+        }
+        assert edge.relation == expected_relations[question]
 
     # Verify graph file was saved
     graph_file_path = os.path.join(IDEAS_DIR, f"{idea_id}_graph.json")
