@@ -38,21 +38,78 @@ async def build_graph_with_llm(idea_id: str) -> Graph:
     import json
     try:
         graph_data = json.loads(llm_response)
-        nodes = [Node(**n) for n in graph_data["nodes"]]
-        edges = [Edge(**e) for e in graph_data["edges"]]
+        nodes = [Node(**n) for n in graph_data.get("nodes", [])]
+        edges = [Edge(**e) for e in graph_data.get("edges", [])]
         graph = Graph(nodes=nodes, edges=edges)
     except Exception as e:
         raise HTTPException(
             status_code=500,
             detail=f"Failed to parse LLM graph: {e}\nRaw LLM response: {llm_response}"
         )
-
-    # Optionally save the graph to a JSON file
+    
+    # Save the generated graph to a JSON file
     graph_file_path = os.path.join(IDEAS_DIR, f"{idea_id}_graph.json")
+    os.makedirs(os.path.dirname(graph_file_path), exist_ok=True)
+    with open(graph_file_path, "w") as f:
+        json.dump(graph.model_dump(), f, indent=4)
+    print(f"Graph saved to: {graph_file_path}") # Debugging line
+
+    return graph
+
+async def edit_graph_with_llm(idea_id: str, user_text_input: str) -> Graph:
+    """Edits an existing graph using the LLM based on user text input."""
+    graph_file_path = os.path.join(IDEAS_DIR, f"{idea_id}_graph.json")
+    if not os.path.exists(graph_file_path):
+        raise HTTPException(status_code=404, detail="Graph not found for this idea.")
+
+    with open(graph_file_path, "r") as f:
+        existing_graph_data = json.load(f)
+    
+    # Render prompt for editing
+    with open(os.path.join(os.path.dirname(__file__), "../prompts/edit_graph.txt"), "r") as f:
+        prompt_template = f.read()
+    prompt = (
+        prompt_template
+        .replace("{{existing_graph}}", json.dumps(existing_graph_data, indent=2))
+        .replace("{{user_text_input}}", user_text_input)
+    )
+
+    # Call LLM
+    llm = LLMClient()
+    llm_response = await llm.send_prompt(prompt)
+
+    # Parse JSON from LLM response
+    try:
+        updated_graph_data = json.loads(llm_response)
+        nodes = [Node(**n) for n in updated_graph_data.get("nodes", [])]
+        edges = [Edge(**e) for e in updated_graph_data.get("edges", [])]
+        graph = Graph(nodes=nodes, edges=edges)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to parse LLM response for graph edit: {e}\nRaw LLM response: {llm_response}"
+        )
+
+    # Save the updated graph to a JSON file
     with open(graph_file_path, "w") as f:
         json.dump(graph.model_dump(), f, indent=4)
 
     return graph
+
+async def load_graph(idea_id: str) -> Graph | None:
+    """Loads an existing graph from a JSON file."""
+    graph_file_path = os.path.join(IDEAS_DIR, f"{idea_id}_graph.json")
+    if os.path.exists(graph_file_path):
+        try:
+            with open(graph_file_path, "r") as f:
+                graph_data = json.load(f)
+            nodes = [Node(**n) for n in graph_data.get("nodes", [])]
+            edges = [Edge(**e) for e in graph_data.get("edges", [])]
+            return Graph(nodes=nodes, edges=edges)
+        except Exception as e:
+            print(f"Error loading graph for idea_id {idea_id}: {e}")
+            return None
+    return None
 
 async def build_graph(idea_id: str) -> Graph:
     """Reads idea and answers, converts into nodes & edges with heuristics."""

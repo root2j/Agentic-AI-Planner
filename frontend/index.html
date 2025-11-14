@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Idea to Plan POC</title>
+    <title>Idea to Plan</title>
     <script
       type="text/javascript"
       src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"
@@ -95,7 +95,7 @@
     </style>
   </head>
   <body>
-    <h1>Idea to Plan POC</h1>
+    <h1>Idea to Plan</h1>
 
     <div id="idea-section">
       <h2>1. Submit a New Idea</h2>
@@ -125,15 +125,9 @@
       <div class="output" id="answersOutput"></div>
     </div>
 
-    <div id="plan-section" style="display: none">
-      <h2>4. View Plan</h2>
-      <p>Idea ID: <span id="currentIdeaIdPlan"></span></p>
-      <button onclick="getPlan(event)">Get Plan</button>
-      <div class="output" id="planOutput"></div>
-    </div>
-
+    
     <div id="graph-section" style="display: none">
-      <h2>5. View Graph</h2>
+      <h2>4. View Graph</h2>
       <p>Idea ID: <span id="currentIdeaIdGraph"></span></p>
       <button type="button" onclick="getGraph(event)">Get Graph</button>
 
@@ -149,6 +143,28 @@
 
       <div class="output" id="graphOutput"></div>
     </div>
+
+    <div id="graph-edit-section" style="display: none">
+      <h2>5. Edit Graph</h2>
+      <p>Idea ID: <span id="currentIdeaIdGraphEdit"></span></p>
+      <label for="graphEditInput">Edit Instructions:</label>
+      <textarea
+        id="graphEditInput"
+        rows="4"
+        placeholder="e.g., Add a node 'User Authentication' of type 'feature' linked to 'Main Idea' with relation 'requires'. Change 'Feature X' label to 'User Profiles'."
+      ></textarea
+      ><br />
+      <button type="button" onclick="editGraph(event)">Apply Edits</button>
+      <div class="output" id="graphEditOutput"></div>
+    </div>
+
+    <div id="plan-section" style="display: none">
+      <h2>6. View Plan</h2>
+      <p>Idea ID: <span id="currentIdeaIdPlan"></span></p>
+      <button onclick="getPlan(event)">Get Plan</button>
+      <div class="output" id="planOutput"></div>
+    </div>
+
 
     <script>
       const API_BASE_URL = "http://127.0.0.1:8000";
@@ -231,7 +247,9 @@
             document.getElementById("currentIdeaIdPlan").textContent =
               currentIdeaId;
             document.getElementById("currentIdeaIdGraph").textContent =
-              currentIdeaId; // Added for graph
+              currentIdeaId;
+            document.getElementById("currentIdeaIdGraphEdit").textContent =
+              currentIdeaId; // Added for graph edit
             displayOutput(
               "ideaOutput",
               `Idea submitted! Idea ID: ${currentIdeaId}`,
@@ -239,6 +257,7 @@
             );
             document.getElementById("questions-section").style.display =
               "block";
+            toggleGraphEditSection(false); // Ensure graph edit section is hidden/disabled initially
           } else {
             displayOutput(
               "ideaOutput",
@@ -380,13 +399,15 @@
               "success"
             );
             document.getElementById("plan-section").style.display = "block";
-            document.getElementById("graph-section").style.display = "block"; // Show graph section
+            document.getElementById("graph-section").style.display = "block";
+            toggleGraphEditSection(true); // Show and enable graph edit section
           } else {
             displayOutput(
               "answersOutput",
               `Error: ${data.detail || response.statusText}`,
               "error"
             );
+            toggleGraphEditSection(false); // Hide and disable on error
           }
         } catch (error) {
           displayOutput(
@@ -394,6 +415,7 @@
             `Network error: ${error.message}`,
             "error"
           );
+          toggleGraphEditSection(false); // Hide and disable on network error
         } finally {
           setButtonLoading(button, false, "", originalText);
         }
@@ -452,6 +474,7 @@
         // Hide the old graph visualization and text output
         document.getElementById("graph-visualization").style.display = "none";
         document.getElementById("graphOutput").style.display = "none";
+        toggleGraphEditSection(false); // Disable edit section initially
 
         // Show loading message
         displayOutput("graphOutput", "Generating graph...", "loading");
@@ -478,17 +501,105 @@
             document.getElementById("graphOutput").style.display = "none";
 
             // 2. Render the visual graph
-            renderGraph(data);
+            if (data && data.nodes && data.edges) {
+              renderGraph(data);
+              toggleGraphEditSection(true); // Enable edit section on successful graph display
+            } else {
+              displayOutput(
+                "graphOutput",
+                "Error: Invalid graph data received from the server.",
+                "error"
+              );
+              toggleGraphEditSection(false); // Disable edit section on invalid data
+            }
           } else {
             displayOutput(
               "graphOutput",
               `Error: ${data.detail || response.statusText}`,
               "error"
             );
+            toggleGraphEditSection(false); // Disable edit section on error
           }
         } catch (error) {
           displayOutput(
             "graphOutput",
+            `Network error: ${error.message}. Please ensure the backend is running and accessible.`,
+            "error"
+          );
+          toggleGraphEditSection(false); // Disable edit section on network error
+        } finally {
+          setButtonLoading(button, false, "", originalText);
+        }
+      }
+
+      async function editGraph(event) {
+        event.preventDefault();
+        const button = event.target;
+        const originalText = button.textContent;
+        setButtonLoading(button, true, "Applying Edits...", originalText);
+
+        const userTextInput = document.getElementById("graphEditInput").value;
+        if (!userTextInput.trim()) {
+          displayOutput(
+            "graphEditOutput",
+            "Please enter instructions for editing the graph.",
+            "error"
+          );
+          setButtonLoading(button, false, "", originalText);
+          return;
+        }
+
+        if (!currentIdeaId) {
+          displayOutput(
+            "graphEditOutput",
+            "Please submit an idea and answers first.",
+            "error"
+          );
+          setButtonLoading(button, false, "", originalText);
+          return;
+        }
+
+        displayOutput("graphEditOutput", "Applying graph edits...", "loading");
+
+        try {
+          const response = await fetch(
+            `${API_BASE_URL}/ideas/${currentIdeaId}/graph/edit`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ user_text_input: userTextInput }),
+            }
+          );
+          const data = await response.json();
+          if (response.ok) {
+            displayOutput(
+              "graphEditOutput",
+              "Graph successfully updated!",
+              "success"
+            );
+            // Render the updated graph directly from the response
+            if (data && data.nodes && data.edges) {
+              renderGraph(data);
+            } else {
+              displayOutput(
+                "graphEditOutput",
+                "Error: Invalid graph data received after edit.",
+                "error"
+              );
+            }
+          } else {
+          console.log(response);
+            displayOutput(
+              "graphEditOutput",
+              `Error: ${data.detail || response.statusText}`,
+              "error"
+            );
+          }
+        } catch (error) {
+          displayOutput(
+            "graphEditOutput",
             `Network error: ${error.message}`,
             "error"
           );
@@ -631,6 +742,26 @@
 
         // 4. Initialize the Network
         new vis.Network(container, data, options);
+      }
+
+      /**
+       * Toggles the visibility and enabled state of the graph edit section.
+       * @param {boolean} enable - True to show and enable, false to hide and disable.
+       */
+      function toggleGraphEditSection(enable) {
+        const section = document.getElementById("graph-edit-section");
+        const editButton = section.querySelector("button");
+        const editInput = section.querySelector("textarea");
+
+        if (enable) {
+          section.style.display = "block";
+          editButton.disabled = false;
+          editInput.disabled = false;
+        } else {
+          section.style.display = "none";
+          editButton.disabled = true;
+          editInput.disabled = true;
+        }
       }
     </script>
   </body>

@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.services.idea_service import ingest_idea, generate_questions, submit_answers
 from app.services.graph_service import build_graph
 from app.services.plan_service import get_plan
+from app.models import GraphEditRequest # Import the new model
 
 app = FastAPI()
 
@@ -34,9 +35,15 @@ async def answers(idea_id: str, answers: dict):
 
 from app.services.graph_service import build_graph_with_llm
 
+from app.services.graph_service import build_graph_with_llm, edit_graph_with_llm
+
 @app.get("/ideas/{idea_id}/graph")
 async def graph(idea_id: str):
     return await build_graph_with_llm(idea_id)
+
+@app.post("/ideas/{idea_id}/graph/edit")
+async def edit_graph(idea_id: str, request: GraphEditRequest): # Use the new model
+    return await edit_graph_with_llm(idea_id, request.user_text_input)
 
 @app.get("/ideas/{idea_id}/plan")
 async def plan(idea_id: str):

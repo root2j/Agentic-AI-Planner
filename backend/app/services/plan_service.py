@@ -4,7 +4,7 @@ from app.models import Plan, Graph
 from app.storage import save_plan_markdown, load_plan_markdown
 from app.config import PLANS_DIR
 from app.services.llm_client import LLMClient
-from app.services.graph_service import build_graph
+from app.services.graph_service import build_graph, build_graph_with_llm, load_graph
 
 llm_client = LLMClient()
 
@@ -26,7 +26,10 @@ async def get_plan(idea_id: str) -> Plan:
     if existing_plan_markdown:
         return Plan(idea_id=idea_id, markdown=existing_plan_markdown)
     
-    graph = await build_graph(idea_id)
+    graph = await load_graph(idea_id)
+    if not graph:
+        graph = await build_graph_with_llm(idea_id)
+    
     plan_markdown = await generate_plan(graph)
     
     plan = Plan(idea_id=idea_id, markdown=plan_markdown)

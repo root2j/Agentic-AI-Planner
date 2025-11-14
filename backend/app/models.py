@@ -33,3 +33,6 @@ class Graph(BaseModel):
 class Plan(BaseModel):
     idea_id: str
     markdown: str
+
+class GraphEditRequest(BaseModel):
+    user_text_input: str
