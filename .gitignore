@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python/
+env/
+venv/
+.venv/
+pip-wheel-metadata/
+.tox/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Editor/IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*~
+.DS_Store
+
+# OS generated files
+.Trash-*
+.localized
+
+# Environment variables
+.env
+.flaskenv
+
+# Logs and temporary files
+*.log
+*.tmp
+tmp/
+
+# Data directories
+backend/data/

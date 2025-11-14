@@ -1,0 +1,28 @@
+You are an expert knowledge graph builder.
+
+Given the following idea description and a set of Q&A pairs, generate a JSON object representing a graph. The graph should have:
+- "nodes": each node has an "id", "label", and "type"
+- "edges": each edge has "from_node", "to_node", and a "relation" field
+
+Requirements:
+- Use natural, context-aware, and diverse relationship labels for the "relation" field (not limited to a fixed set).
+- The relation should describe the actual connection between nodes in plain English.
+- Do not use generic labels like "clarifies" or "relates to" unless truly appropriate.
+- Output only valid JSON.
+
+Input:
+Idea: {{idea_text}}
+Q&A:
+{{qa_pairs}}
+
+Output example:
+{
+  "nodes": [
+    {"id": "1", "label": "Main Idea", "type": "idea"},
+    {"id": "2", "label": "Feature X", "type": "feature"}
+  ],
+  "edges": [
+    {"from_node": "1", "to_node": "2", "relation": "enables"},
+    {"from_node": "2", "to_node": "1", "relation": "is required by"}
+  ]
+}

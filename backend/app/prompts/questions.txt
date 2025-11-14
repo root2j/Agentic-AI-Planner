@@ -1,0 +1,6 @@
+Given the following app idea:
+{{idea_text}}
+List exactly 5 unique questions that clarify its scope, users, and core features. 
+Each question must be distinct and should appear only once. 
+Do not repeat or rephrase questions. 
+Format your output so that each question is presented only once, with a single answer slot per question.

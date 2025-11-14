@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Idea to Plan POC</title>
+    <script
+      type="text/javascript"
+      src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"
+    ></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px auto;
+        padding: 0 20px;
+        max-width: 800px; /* Added for readability on wide screens */
+        background-color: #f4f4f9;
+      }
+      h1,
+      h2 {
+        color: #333;
+        border-bottom: 2px solid #007bff;
+        padding-bottom: 5px;
+      }
+      /* Improved section styling */
+      div[id$="-section"] {
+        margin-bottom: 20px;
+        padding: 15px;
+        border: 1px solid #ccc; /* Made border more visible */
+        border-radius: 8px;
+        background-color: #fff;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05); /* Added subtle shadow */
+      }
+      label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+      }
+      input[type="text"],
+      textarea {
+        width: 95%; /* Adjusted width */
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 14px;
+      }
+      textarea {
+        resize: vertical; /* Allow vertical resizing */
+      }
+      button {
+        padding: 10px 15px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+        transition: background-color 0.2s;
+      }
+      button:hover {
+        background-color: #0056b3;
+      }
+      button:disabled {
+        /* Style for disabled buttons (during loading) */
+        background-color: #aaa;
+        cursor: wait;
+      }
+      .output {
+        background-color: #f9f9f9;
+        border-left: 5px solid #007bff;
+        padding: 10px;
+        margin-top: 15px;
+        display: none; /* Hidden by default */
+      }
+      /* Styles for different output types */
+      .output.success {
+        border-left-color: #28a745;
+        color: #155724;
+      }
+      .output.error {
+        border-left-color: #dc3545;
+        color: #721c24;
+      }
+      .output.loading {
+        border-left-color: #6c757d;
+        color: #383d41;
+      }
+
+      pre {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        font-family: monospace;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Idea to Plan POC</h1>
+
+    <div id="idea-section">
+      <h2>1. Submit a New Idea</h2>
+      <label for="ideaText">Idea Description:</label>
+      <textarea
+        id="ideaText"
+        rows="4"
+        placeholder="e.g., A mobile app for tracking personal finance."
+      ></textarea
+      ><br />
+      <button type="button" onclick="submitIdea(event)">Submit Idea</button>
+      <div class="output" id="ideaOutput"></div>
+    </div>
+
+    <div id="questions-section" style="display: none">
+      <h2>2. Generate Questions</h2>
+      <p>Idea ID: <span id="currentIdeaId"></span></p>
+      <button onclick="generateQuestions(event)">Generate Questions</button>
+      <div class="output" id="questionsOutput"></div>
+    </div>
+
+    <div id="answers-section" style="display: none">
+      <h2>3. Submit Answers</h2>
+      <p>Idea ID: <span id="currentIdeaIdAnswers"></span></p>
+      <div id="questionInputs"></div>
+      <button onclick="submitAnswers(event)">Submit Answers</button>
+      <div class="output" id="answersOutput"></div>
+    </div>
+
+    <div id="plan-section" style="display: none">
+      <h2>4. View Plan</h2>
+      <p>Idea ID: <span id="currentIdeaIdPlan"></span></p>
+      <button onclick="getPlan(event)">Get Plan</button>
+      <div class="output" id="planOutput"></div>
+    </div>
+
+    <div id="graph-section" style="display: none">
+      <h2>5. View Graph</h2>
+      <p>Idea ID: <span id="currentIdeaIdGraph"></span></p>
+      <button type="button" onclick="getGraph(event)">Get Graph</button>
+
+      <div
+        id="graph-visualization"
+        style="
+          height: 500px;
+          border: 1px solid #ccc;
+          margin-top: 15px;
+          display: none;
+        "
+      ></div>
+
+      <div class="output" id="graphOutput"></div>
+    </div>
+
+    <script>
+      const API_BASE_URL = "http://127.0.0.1:8000";
+      let currentIdeaId = null;
+      let currentQuestions = [];
+
+      /**
+       * Displays a message in an output box.
+       * @param {string} elementId - The ID of the output element.
+       * @param {string|object} message - The message text or JSON object to display.
+       * @param {'success'|'error'|'loading'} type - The type of message.
+       */
+      function displayOutput(elementId, message, type = "success") {
+        const outputElement = document.getElementById(elementId);
+
+        // Format message
+        let formattedMessage = "";
+        if (typeof message === "object") {
+          formattedMessage = JSON.stringify(message, null, 2); // Pretty-print JSON
+        } else {
+          formattedMessage = message;
+        }
+
+        outputElement.innerHTML = `<pre>${formattedMessage}</pre>`;
+
+        // Set style based on type
+        outputElement.className = "output"; // Reset classes
+        outputElement.classList.add(type); // Add new type class
+
+        outputElement.style.display = "block";
+      }
+
+      /**
+       * Sets the loading state for a button.
+       * @param {HTMLButtonElement} button - The button element.
+       * @param {boolean} isLoading - Whether to set loading state.
+       * @param {string} loadingText - Text to display when loading.
+       * @param {string} originalText - Original button text.
+       */
+      function setButtonLoading(button, isLoading, loadingText, originalText) {
+        if (button) {
+          button.disabled = isLoading;
+          button.textContent = isLoading ? loadingText : originalText;
+        }
+      }
+
+      async function submitIdea(event) {
+        event.preventDefault();
+        const button = event.target;
+        const originalText = button.textContent;
+        setButtonLoading(button, true, "Submitting...", originalText);
+
+        const ideaText = document.getElementById("ideaText").value;
+        if (!ideaText.trim()) {
+          displayOutput(
+            "ideaOutput",
+            "Please enter an idea description.",
+            "error"
+          );
+          setButtonLoading(button, false, "", originalText);
+          return;
+        }
+
+        displayOutput("ideaOutput", "Submitting idea...", "loading");
+
+        try {
+          const response = await fetch(
+            `${API_BASE_URL}/ideas?text=${encodeURIComponent(ideaText)}`,
+            {
+              method: "POST",
+            }
+          );
+          const data = await response.json();
+          if (response.ok) {
+            currentIdeaId = data.idea_id;
+            document.getElementById("currentIdeaId").textContent =
+              currentIdeaId;
+            document.getElementById("currentIdeaIdAnswers").textContent =
+              currentIdeaId;
+            document.getElementById("currentIdeaIdPlan").textContent =
+              currentIdeaId;
+            document.getElementById("currentIdeaIdGraph").textContent =
+              currentIdeaId; // Added for graph
+            displayOutput(
+              "ideaOutput",
+              `Idea submitted! Idea ID: ${currentIdeaId}`,
+              "success"
+            );
+            document.getElementById("questions-section").style.display =
+              "block";
+          } else {
+            displayOutput(
+              "ideaOutput",
+              `Error: ${data.detail || response.statusText}`,
+              "error"
+            );
+          }
+        } catch (error) {
+          displayOutput(
+            "ideaOutput",
+            `Network error: ${error.message}`,
+            "error"
+          );
+        } finally {
+          setButtonLoading(button, false, "", originalText);
+        }
+      }
+
+      async function generateQuestions(event) {
+        event.preventDefault();
+        const button = event.target;
+        const originalText = button.textContent;
+        setButtonLoading(button, true, "Generating...", originalText);
+
+        if (!currentIdeaId) {
+          displayOutput(
+            "questionsOutput",
+            "Please submit an idea first.",
+            "error"
+          );
+          setButtonLoading(button, false, "", originalText);
+          return;
+        }
+
+        displayOutput("questionsOutput", "Generating questions...", "loading");
+
+        try {
+          const response = await fetch(
+            `${API_BASE_URL}/ideas/${currentIdeaId}/questions`
+          );
+          const data = await response.json();
+          if (response.ok) {
+            currentQuestions = data.questions;
+            displayOutput(
+              "questionsOutput",
+              `Generated Questions:\n${currentQuestions.join("\n")}`,
+              "success"
+            );
+            renderQuestionInputs();
+            document.getElementById("answers-section").style.display = "block";
+          } else {
+            displayOutput(
+              "questionsOutput",
+              `Error: ${data.detail || response.statusText}`,
+              "error"
+            );
+          }
+        } catch (error) {
+          displayOutput(
+            "questionsOutput",
+            `Network error: ${error.message}`,
+            "error"
+          );
+        } finally {
+          setButtonLoading(button, false, "", originalText);
+        }
+      }
+
+      function renderQuestionInputs() {
+        const questionInputsDiv = document.getElementById("questionInputs");
+        questionInputsDiv.innerHTML = "";
+        currentQuestions.forEach((question, index) => {
+          const div = document.createElement("div");
+          div.style.marginBottom = "10px"; // Add spacing
+          div.innerHTML = `
+                    <label for="answer-${index}">${question}</label>
+                    <input type="text" id="answer-${index}" data-question="${question}" placeholder="Your answer here" required>
+                `;
+          questionInputsDiv.appendChild(div);
+        });
+      }
+
+      async function submitAnswers(event) {
+        event.preventDefault();
+        const button = event.target;
+        const originalText = button.textContent;
+        setButtonLoading(button, true, "Submitting...", originalText);
+
+        if (!currentIdeaId || currentQuestions.length === 0) {
+          displayOutput(
+            "answersOutput",
+            "Please generate questions first.",
+            "error"
+          );
+          setButtonLoading(button, false, "", originalText);
+          return;
+        }
+
+        const answers = {};
+        let allAnswered = true;
+        currentQuestions.forEach((question, index) => {
+          const answerInput = document.getElementById(`answer-${index}`);
+          if (answerInput) {
+            if (!answerInput.value.trim()) {
+              allAnswered = false;
+            }
+            answers[question] = answerInput.value;
+          }
+        });
+
+        if (!allAnswered) {
+          displayOutput(
+            "answersOutput",
+            "Please provide an answer for all questions.",
+            "error"
+          );
+          setButtonLoading(button, false, "", originalText);
+          return;
+        }
+
+        displayOutput("answersOutput", "Submitting answers...", "loading");
+
+        try {
+          const response = await fetch(
+            `${API_BASE_URL}/ideas/${currentIdeaId}/answers`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(answers),
+            }
+          );
+          const data = await response.json();
+          if (response.ok) {
+            displayOutput(
+              "answersOutput",
+              `Answers submitted: ${data.status}`,
+              "success"
+            );
+            document.getElementById("plan-section").style.display = "block";
+            document.getElementById("graph-section").style.display = "block"; // Show graph section
+          } else {
+            displayOutput(
+              "answersOutput",
+              `Error: ${data.detail || response.statusText}`,
+              "error"
+            );
+          }
+        } catch (error) {
+          displayOutput(
+            "answersOutput",
+            `Network error: ${error.message}`,
+            "error"
+          );
+        } finally {
+          setButtonLoading(button, false, "", originalText);
+        }
+      }
+
+      async function getPlan(event) {
+        event.preventDefault();
+        const button = event.target;
+        const originalText = button.textContent;
+        setButtonLoading(button, true, "Generating...", originalText);
+
+        if (!currentIdeaId) {
+          displayOutput(
+            "planOutput",
+            "Please submit an idea and answers first.",
+            "error"
+          );
+          setButtonLoading(button, false, "", originalText);
+          return;
+        }
+
+        displayOutput("planOutput", "Generating plan...", "loading");
+
+        try {
+          const response = await fetch(
+            `${API_BASE_URL}/ideas/${currentIdeaId}/plan`
+          );
+          const data = await response.json();
+          if (response.ok) {
+            displayOutput("planOutput", data.plan, "success"); // Display plan as plain text
+          } else {
+            displayOutput(
+              "planOutput",
+              `Error: ${data.detail || response.statusText}`,
+              "error"
+            );
+          }
+        } catch (error) {
+          displayOutput(
+            "planOutput",
+            `Network error: ${error.message}`,
+            "error"
+          );
+        } finally {
+          setButtonLoading(button, false, "", originalText);
+        }
+      }
+
+      // This is your UPDATED getGraph function
+      async function getGraph(event) {
+        event.preventDefault(); // (Make sure this is here!)
+        const button = event.target;
+        const originalText = button.textContent;
+        setButtonLoading(button, true, "Generating...", originalText);
+
+        // Hide the old graph visualization and text output
+        document.getElementById("graph-visualization").style.display = "none";
+        document.getElementById("graphOutput").style.display = "none";
+
+        // Show loading message
+        displayOutput("graphOutput", "Generating graph...", "loading");
+
+        if (!currentIdeaId) {
+          displayOutput(
+            "graphOutput",
+            "Please submit an idea and answers first.",
+            "error"
+          );
+          setButtonLoading(button, false, "", originalText);
+          return;
+        }
+
+        try {
+          const response = await fetch(
+            `${API_BASE_URL}/ideas/${currentIdeaId}/graph`
+          );
+          const data = await response.json();
+
+          if (response.ok) {
+            // SUCCESS!
+            // 1. Hide the loading message
+            document.getElementById("graphOutput").style.display = "none";
+
+            // 2. Render the visual graph
+            renderGraph(data);
+          } else {
+            displayOutput(
+              "graphOutput",
+              `Error: ${data.detail || response.statusText}`,
+              "error"
+            );
+          }
+        } catch (error) {
+          displayOutput(
+            "graphOutput",
+            `Network error: ${error.message}`,
+            "error"
+          );
+        } finally {
+          setButtonLoading(button, false, "", originalText);
+        }
+      }
+
+      /**
+       * Renders the graph data using Vis.js
+       * @param {object} graphData - The JSON response from the /graph endpoint
+       */
+      /**
+       * Renders the graph data using Vis.js
+       * @param {object} graphData - The JSON response from the /graph endpoint
+       */
+      function renderGraph(graphData) {
+        // 1. Find the container and make it visible
+        const container = document.getElementById("graph-visualization");
+        container.style.display = "block";
+        container.innerHTML = ""; // Clear any old graph
+
+        // --- PATCH FOR BAD DATA ---
+        // Filter out the "No answer" nodes that share a duplicate ID
+        const filteredNodes = graphData.nodes.filter((node) => {
+          return node.label !== "No answer";
+        });
+
+        const validNodeIds = new Set(filteredNodes.map((n) => n.id));
+        const filteredEdges = graphData.edges.filter((edge) => {
+          return (
+            validNodeIds.has(edge.from_node) && validNodeIds.has(edge.to_node)
+          );
+        });
+        // --- END OF PATCH ---
+
+        // 2. Transform data for Vis.js
+        const nodes = new vis.DataSet(
+          filteredNodes.map((node) => {
+            // --- FIX FOR LONG LABELS ---
+            // Truncate the label if it's too long
+            const shortLabel =
+              node.label.length > 25
+                ? node.label.substring(0, 25) + "..."
+                : node.label;
+
+            // Create a custom HTML element for the tooltip (on hover)
+            const tooltip = document.createElement("div");
+            tooltip.style.maxWidth = "300px"; // Set max width for the tooltip
+            tooltip.style.whiteSpace = "normal"; // Allow text to wrap
+            tooltip.style.textAlign = "left";
+            tooltip.style.padding = "5px";
+            tooltip.innerHTML = `
+            <strong style="color: #007bff; font-size: 14px;">${
+              node.label
+            }</strong>
+            <hr style="margin: 4px 0;">
+            <span style="font-size: 12px;">${
+              node.notes || "No details"
+            }</span>`;
+            // --- END OF LABEL FIX ---
+
+            return {
+              id: node.id,
+              label: shortLabel, // Use the new truncated label
+              title: tooltip, // Assign the HTML element as the tooltip
+              group: node.type, // Use 'idea' or 'feature' for group styling
+              mass: node.type === "idea" ? 3 : 1.5, // Make the main idea "heavier"
+            };
+          })
+        );
+
+        const edges = new vis.DataSet(
+          filteredEdges.map((edge) => {
+            return {
+              from: edge.from_node,
+              to: edge.to_node,
+              label: edge.relation,
+              arrows: "to",
+            };
+          })
+        );
+
+        // 3. Create the graph
+        const data = { nodes: nodes, edges: edges };
+
+        // --- NEW OPTIONS FOR MIND-MAP & AESTHETICS ---
+        const options = {
+          layout: {
+            hierarchical: false, // <-- 1. This disables the "tree" layout
+          },
+          physics: {
+            enabled: true, // <-- 2. This enables the "mind-map" layout
+            solver: "barnesHut",
+            barnesHut: {
+              gravitationalConstant: -15000, // Pushes nodes apart
+              centralGravity: 0.1,
+              springLength: 150,
+              springConstant: 0.05,
+            },
+          },
+          nodes: {
+            borderWidth: 2,
+            shadow: {
+              enabled: true,
+              color: "rgba(0,0,0,0.2)",
+              x: 3,
+              y: 3,
+            },
+            font: { size: 14, face: "Arial" },
+          },
+          edges: {
+            width: 2,
+            color: { color: "#b0b0b0", highlight: "#007bff" },
+            arrows: "to",
+            smooth: { type: "continuous" },
+          },
+          // --- 3. This styles nodes based on their 'group' (type) ---
+          groups: {
+            idea: {
+              color: { background: "#dbeeff", border: "#007bff" },
+              shape: "ellipse",
+              font: { size: 18, color: "#003c7d" },
+            },
+            feature: {
+              color: { background: "#ffffff", border: "#cccccc" },
+              shape: "box",
+              font: { color: "#333333" },
+            },
+          },
+          interaction: {
+            hover: true, // Enable tooltips
+            tooltipDelay: 200,
+            dragNodes: true,
+            dragView: true,
+            zoomView: true,
+          },
+        };
+        // --- END OF NEW OPTIONS ---
+
+        // 4. Initialize the Network
+        new vis.Network(container, data, options);
+      }
+    </script>
+  </body>
+</html>
