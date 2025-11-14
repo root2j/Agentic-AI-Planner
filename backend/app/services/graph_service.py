@@ -6,9 +6,8 @@ from app.models import Idea, Node, Edge, Graph
 from app.storage import load_idea
 from app.config import IDEAS_DIR
 from fastapi import HTTPException
-from app.services.llm_client import LLMClient
-
 import asyncio
+from app.services.llm_client import LLMClient # Keep import at top
 
 async def build_graph_with_llm(idea_id: str) -> Graph:
     """Builds a graph using the LLM for dynamic, context-aware relations."""
@@ -31,7 +30,7 @@ async def build_graph_with_llm(idea_id: str) -> Graph:
     )
 
     # Call LLM
-    llm = LLMClient()
+    llm = LLMClient() # Instantiate LLMClient inside the function
     llm_response = await llm.send_prompt(prompt)
 
     # Parse JSON from LLM response
@@ -75,7 +74,7 @@ async def edit_graph_with_llm(idea_id: str, user_text_input: str) -> Graph:
     )
 
     # Call LLM
-    llm = LLMClient()
+    llm = LLMClient() # Instantiate LLMClient inside the function
     llm_response = await llm.send_prompt(prompt)
 
     # Parse JSON from LLM response

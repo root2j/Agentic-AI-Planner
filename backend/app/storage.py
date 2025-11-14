@@ -19,7 +19,9 @@ def load_idea(idea_id: str, directory: str) -> Union[Idea, None]:
     """Loads an Idea object from a JSON file."""
     file_path = _get_file_path(directory, idea_id)
     if not os.path.exists(file_path):
+        print(f"DEBUG: Idea file not found at {file_path}")
         return None
+    print(f"DEBUG: Loading idea from {file_path}")
     with open(file_path, "r") as f:
         data = json.load(f)
     return Idea(**data)

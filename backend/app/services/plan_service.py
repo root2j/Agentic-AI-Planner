@@ -6,7 +6,6 @@ from app.config import PLANS_DIR
 from app.services.llm_client import LLMClient
 from app.services.graph_service import build_graph, build_graph_with_llm, load_graph
 
-llm_client = LLMClient()
 
 async def generate_plan(graph: Graph) -> str:
     """Formats prompts/plan.txt with graph JSON, calls Gemini, returns markdown."""
@@ -17,6 +16,7 @@ async def generate_plan(graph: Graph) -> str:
     graph_json = json.dumps(graph.model_dump(), indent=2)
     prompt = prompt_template.replace("{{graph_json}}", graph_json)
     
+    llm_client = LLMClient() # Instantiate LLMClient inside the function
     llm_response = await llm_client.send_prompt(prompt)
     return llm_response
 

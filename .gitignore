@@ -44,3 +44,7 @@ tmp/
 
 # Data directories
 backend/data/
+data/ideas/
+benchmark_20251114_085309-api_performance.svg
+benchmark_20251114_094109-api_performance.svg
+benchmark_results.json

@@ -4,10 +4,8 @@ from typing import List, Dict
 from app.models import Idea
 from app.storage import save_idea, load_idea
 from app.config import IDEAS_DIR
-from app.services.llm_client import LLMClient
 from fastapi import HTTPException
-
-llm_client = LLMClient()
+from app.services.llm_client import LLMClient # Keep import at top
 
 async def ingest_idea(text: str) -> str:
     """Generates a UUID, stores raw idea in JSON, returns idea_id."""
@@ -29,6 +27,7 @@ async def generate_questions(idea_id: str) -> List[str]:
         prompt_template = f.read()
 
     prompt = prompt_template.replace("{{idea_text}}", idea.text)
+    llm_client = LLMClient() # Instantiate LLMClient inside the function
     llm_response = await llm_client.send_prompt(prompt)
 
     # Assuming LLM response is a newline-separated list of questions
